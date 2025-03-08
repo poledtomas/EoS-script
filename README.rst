@@ -1,7 +1,5 @@
-# EoS-script
-EoS - script
 ==============
-python-scripts
+EoS - script
 ==============
 
 Python script for EoS project.

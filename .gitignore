@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+venv/
+data/
+jobs/
+*.log
+nohup.out
+.vscode/

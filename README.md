@@ -1,2 +1,2 @@
-# EoS---script
+# EoS-script
 EoS - script

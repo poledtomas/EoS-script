@@ -1,2 +1,0 @@
-# EoS-script
-EoS - script

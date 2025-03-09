@@ -1,18 +1,19 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 
-dir = "/Users/tomaspolednicek/Desktop/EoS-script/data/"
+dir = "/Users/tomaspolednicek/Desktop/EoS-script/"
 
 dataX0 = pd.read_csv(
-    dir + "BarDens_Final_PAR_143_350_3_93_143_286_3D.dat",
+    dir + "EoS.dat",
     sep="\t",
     header=None,
-    names=["x", "y", "z"],
+    names=["e", "nb", "T", "mub", "P"],
 )
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
 
-ax.plot_trisurf(dataX0["x"], dataX0["y"], dataX0["z"], cmap="viridis")
+# ax.plot_trisurf(dataX0["e"], dataX0["nb"], dataX0["P"], cmap="viridis")
+ax.scatter(dataX0["e"], dataX0["nb"], dataX0["T"], c=dataX0["T"], cmap="viridis")
 
 plt.show()

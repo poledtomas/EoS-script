@@ -13,7 +13,7 @@ dataX0 = pd.read_csv(
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
 
-# ax.plot_trisurf(dataX0["e"], dataX0["nb"], dataX0["P"], cmap="viridis")
-ax.scatter(dataX0["e"], dataX0["nb"], dataX0["T"], c=dataX0["T"], cmap="viridis")
+ax.plot_trisurf(dataX0["e"], dataX0["nb"], dataX0["P"], cmap="viridis")
+# ax.scatter(dataX0["e"], dataX0["nb"], dataX0["P"], c=dataX0["P"], cmap="viridis")
 
 plt.show()

@@ -109,7 +109,7 @@ def main():
     e_max = enerdens["e"].max()
     nb_min = bardens["nb"].min()
     nb_max = bardens["nb"].max()
-    Bins = 200
+    Bins = 400
 
     de = (e_max - e_min) / Bins
     dnb = (nb_max - nb_min) / Bins
@@ -127,31 +127,18 @@ def main():
 
                 if result is not None:
                     T_result, mub_result = result
-                    # Calculate pressure for the found T and mub values
                     p_result = pressure_from_enb(
                         e, nb, E_interp, NB_interp, P_interp, T_vals, mub_vals
                     )
 
                     fout.write(
-                        str(e)
-                        + "\t"
-                        + str(nb)
-                        + "\t"
-                        + str(T_result)
-                        + "\t"
-                        + str(mub_result)
-                        + "\t"
-                        + str(p_result)
-                        + "\n"
+                        f"{e:.6f}\t{nb:.6f}\t{T_result:.6f}\t{mub_result:.6f}\t{p_result:.6f}\n"
                     )
-                    # print(f"For e = {e:.2f} MeV, nB = {nb:.2f}:")
-                    # print(f"  T = {T_result:.2f} MeV")
-                    # print(f"  μB = {mub_result:.2f} MeV")
-                    # print(f"  p = {p_result:.2f} MeV/fm^3")
+
+                    # print(f"T = {T_result:.2f} MeV, μB = {mub_result:.2f} MeV, p = {p_result:.2f} MeV/fm^3")
                 else:
-                    print(
-                        f"Failed to calculate T and μB for e = {e:.2f} MeV, nB = {nb:.2f}. Root-finding did not converge."
-                    )
+                    print(f"Failed to calculate values for e = {e:.2f}, nB = {nb:.2f}.")
+
     fout.close()
 
 

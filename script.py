@@ -105,11 +105,11 @@ def main():
     e_input = []  # List to store example energy densities
     nb_input = []  # List to store baryon densities
 
-    e_min = enerdens["e"].min()
-    e_max = enerdens["e"].max()
-    nb_min = bardens["nb"].min()
-    nb_max = bardens["nb"].max()
-    Bins = 400
+    e_min = 0
+    e_max = 800
+    nb_min = 0
+    nb_max = 800
+    Bins = 10
 
     de = (e_max - e_min) / Bins
     dnb = (nb_max - nb_min) / Bins

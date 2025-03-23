@@ -6,11 +6,12 @@ from scipy.interpolate import griddata
 dir = "/Users/tomaspolednicek/Desktop/EoS-script/data/"
 
 dataX0 = pd.read_csv(
-    dir + "EoS.dat",
+    dir + "Press_Final_PAR_143_350_3_93_143_286_3D.dat",
     sep="\s+",
     header=None,
     # names=["e", "nb", "nQ","T", "P", "mub", "mus", "muq"],
-    names=["e", "nb", "T", "mub", "P"],
+    # names=["e", "nb", "T", "mub", "P"],
+    names=["e", "nb", "P"],
 )
 
 fig = plt.figure()

@@ -16,7 +16,8 @@ Create Python virtual environment::
 
 To run scripts, use for example::
 
-./venv/bin/script.py 
+./venv/bin/python script.py --logfile ./invert.log \
+     invert --output ./data/invert --input ./data 
 
 Contribution guidelines
 =======================

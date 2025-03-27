@@ -1,29 +1,32 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from scipy.interpolate import griddata
 
 dir = "/Users/tomaspolednicek/Desktop/EoS-script/data/"
 
-dataX0 = pd.read_csv(
-    dir + "Press_Final_PAR_143_350_3_93_143_286_3D.dat",
+data = pd.read_csv(
+    dir + "EnerDens_Final_PAR_143_350_3_93_143_286_3D.dat",
     sep="\s+",
     header=None,
     # names=["e", "nb", "nQ","T", "P", "mub", "mus", "muq"],
     # names=["e", "nb", "T", "mub", "P"],
-    names=["e", "nb", "P"],
+    names=["mub", "T", "e"],
 )
 
-fig = plt.figure()
+data["e"] = data["e"] * (data["T"] ** 4)
+
+pivot = data.pivot(index="mub", columns="T", values="e")
+mub_values = pivot.index.values
+T_values = pivot.columns.values
+e_values = pivot.values
+
+MUB, T = np.meshgrid(mub_values, T_values, indexing="ij")
+
+fig = plt.figure(figsize=(8, 6))
 ax = fig.add_subplot(111, projection="3d")
-x = np.linspace(dataX0["e"].min(), dataX0["e"].max(), 100)
-y = np.linspace(dataX0["nb"].min(), dataX0["nb"].max(), 100)
-X, Y = np.meshgrid(x, y)
-Z = griddata((dataX0["e"], dataX0["nb"]), dataX0["P"], (X, Y))
 
-ax.plot_surface(X, Y, Z, cmap="viridis")
+surf = ax.plot_surface(MUB, T, e_values, cmap="viridis")
 
-# ax.plot_trisurf(dataX0["e"], dataX0["nb"], dataX0["P"], cmap="viridis")
-# ax.scatter(dataX0["e"], dataX0["nb"], dataX0["P"], c=dataX0["P"], cmap="viridis")
-
+ax.set_xlabel("Mub")
+ax.set_ylabel("T")
 plt.show()

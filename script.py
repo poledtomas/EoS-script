@@ -1,18 +1,20 @@
 import os
 import pandas as pd
-from scipy.interpolate import RectBivariateSpline
 import logging
 import sys
 import warnings
 from argparse import ArgumentParser
 from logging.handlers import WatchedFileHandler
 from pathlib import Path
+import matplotlib.pyplot as plt
+from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import cpu_count
 
-logger = logging.getLogger("europa")
+logger = logging.getLogger("inventer")
 
 
 def parse_args(argv):
-    parser = ArgumentParser(description="Invert EoS data from (T,mub) to (e,nb)")
+    parser = ArgumentParser(description="Invert EoS data from (mub,T) to (e,nb)")
     parser.add_argument("--logfile", metavar="FILE", help="Log to a specified file")
     parser.add_argument("--loglevel", metavar="LEVEL", default="INFO", help="Log level")
 
@@ -20,7 +22,7 @@ def parse_args(argv):
         description="valid subcommands", dest="subcommand", required=True
     )
     parser_invert = subparsers.add_parser(
-        "invert", help="Invert from (T,mub) to (e,nb)"
+        "invert", help="Invert from (mub,T) to (e,nb)"
     )
     parser_invert.add_argument(
         "--output",
@@ -64,11 +66,11 @@ def open_all_files(directory):
                 logger.info(f"Opening {filename}")
                 if "EnerDens_Final_" in filename:
                     enerdens = pd.read_csv(
-                        filepath, sep="\t", header=None, names=["T", "mub", "e"]
+                        filepath, sep="\t", header=None, names=["mub", "T", "e"]
                     )
                 elif "BarDens_Final_" in filename:
                     bardens = pd.read_csv(
-                        filepath, sep="\t", header=None, names=["T", "mub", "nb"]
+                        filepath, sep="\t", header=None, names=["mub", "T", "nb"]
                     )
 
         if enerdens is None or bardens is None:
@@ -80,71 +82,36 @@ def open_all_files(directory):
         return None, None
 
 
-def prepare_interpolators(enerdens, bardens):
-    e_pivot = enerdens.pivot(index="T", columns="mub", values="e").sort_index()
-    nb_pivot = bardens.pivot(index="T", columns="mub", values="nb").sort_index()
+def linear_func(e, e2, e3, mu2, mu3):
+    result = mu2 + (e - e2) * (mu3 - mu2) / (e3 - e2)
 
-    T = sorted(set(e_pivot.index) & set(nb_pivot.index))
-    mub = sorted(set(e_pivot.columns) & set(nb_pivot.columns))
-    e_pivot = e_pivot.loc[T, mub]
-
-    nb_pivot = nb_pivot.loc[T, mub]
-
-    E_interp = RectBivariateSpline(T, mub, e_pivot.values)
-    NB_interp = RectBivariateSpline(T, mub, nb_pivot.values)
-
-    logger.info("Interpolators were succesfully created ")
-
-    return E_interp, NB_interp, T, mub
+    return result
 
 
-def find_eos(E_interp, NB_interp, T_values, mub_values, e_value, nb_value):
-    logger.info(f"looking for a solution for e = {e_value} a nb = {nb_value}")
+def inventer(data, value, z):
+    logger.info(f"looking for a solution for value = {value}")
+    pivot = data.pivot(index="mub", columns="T", values=f"{z}").sort_index()
+    T_values = sorted(set(pivot.columns))
+    mub_values = sorted(set(pivot.index))
 
-    for mub in mub_values:
-        T_found = None
-        T_nb_found = None
+    T_found = []
+    mub_found = []
 
-        for T in range(len(T_values) - 1):
-            T_low, T_high = T_values[T], T_values[T + 1]
-            e_low, e_high = E_interp(T_low, mub)[0][0], E_interp(T_high, mub)[0][0]
-            if e_low <= e_value <= e_high:
-                T_min, T_max = T_low, T_high
-                while abs(T_max - T_min) > 1e-6:
-                    T_mid = (T_min + T_max) / 2
-                    e_mid = E_interp(T_mid, mub)[0][0]
-                    if (e_mid - e_value) * (e_low - e_value) < 0:
-                        T_max = T_mid
-                    else:
-                        T_min = T_mid
-                T_found = (T_min + T_max) / 2
-                break
+    for T in T_values:
+        for mub in range(len(mub_values) - 1):
+            mub_low, mub_high = mub_values[mub], mub_values[mub + 1]
+            low, high = pivot.loc[mub_values[mub], T], pivot.loc[mub_values[mub + 1], T]
+            if low <= value <= high:
+                result = linear_func(value, low, high, mub_low, mub_high)
+                T_found.append(T)
+                mub_found.append(result)
 
-        for T in range(len(T_values) - 1):
-            T_low, T_high = T_values[T], T_values[T + 1]
+    return mub_found, T_found
 
-            nb_low, nb_high = NB_interp(T_low, mub)[0][0], NB_interp(T_high, mub)[0][0]
-            if nb_low <= nb_value <= nb_high:
-                T_min, T_max = T_low, T_high
-                while abs(T_max - T_min) > 1e-6:
-                    T_mid = (T_min + T_max) / 2
-                    nb_mid = NB_interp(T_mid, mub)[0][0]
-                    if (nb_mid - nb_value) * (nb_low - nb_value) < 0:
-                        T_max = T_mid
-                    else:
-                        T_min = T_mid
 
-                T_nb_found = (T_min + T_max) / 2
-                break
-
-        if T_found is not None and T_nb_found is not None:
-            logger.info(f"mub = {mub}, T_found = {T_found}, T_nb_found = {T_nb_found}")
-            if abs(T_nb_found - T_found) < 2.0:
-                logger.info(f"Solution was found: {T_found} {mub}")
-                return T_found, mub
-
-    logger.info("No solution was found.")
-    return None
+def parallel_inventer(inputs):
+    ener, e_val, type_of_eos = inputs
+    return inventer(ener, e_val, type_of_eos)
 
 
 def main(argv):
@@ -154,32 +121,27 @@ def main(argv):
     try:
         directory = Path(args.input)
         enerdens, bardens = open_all_files(directory)
-        E_interp, NB_interp, T, mub = prepare_interpolators(enerdens, bardens)
-        # min = 0
-        # max = 13
-        # N = 400
-        # dp = (max - min) / N
-        # e_grid = []
-        # nb_grid = []
+        e_value = 5012284343
+        nb_value = 1740599
 
-        # for i in range(N):
-        #    e_grid.append(min + (i + 0.5) * dp)
-        #    nb_grid.append(min + (i + 0.5) * dp)
+        enerdens["e"] = enerdens["e"] * (enerdens["T"] ** 4)
+        bardens["nb"] = bardens["nb"] * (bardens["T"] ** 3)
 
-        # if enerdens is not None and bardens is not None:
-        # e_value = 0.1748480499691949
-        # nb_value = 0.0000000000000700
-        e_value = 11.68
-        nb_value = 0.39
+        inputs = [(enerdens, e_value, "e"), (bardens, nb_value, "nb")]
 
-        find_eos(E_interp, NB_interp, T, mub, e_value, nb_value)
+        with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
+            results = list(executor.map(parallel_inventer, inputs))
 
-        # result = find_eos(E_interp, NB_interp, T, mub, e_value, nb_value)
+        fig, ax = plt.subplots(1, 1, figsize=(7, 5), sharex="col", sharey="row")
 
-        # if result[0] is not None:
-        #    print(f"Matching values found: T = {result[0]}, mub = {result[1]}")
-        # else:
-        #    print("No matching values found.")
+        ax.plot(results[0][0], results[0][1], label="e")
+        ax.plot(results[1][0], results[1][1], label="nb")
+        ax.legend()
+
+        ax.set_xlabel("mub")
+        ax.set_ylabel("T")
+
+        plt.show()
 
     except Exception:
         logger.exception("Something went wrong.")

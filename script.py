@@ -6,7 +6,6 @@ import warnings
 from argparse import ArgumentParser
 from logging.handlers import WatchedFileHandler
 from pathlib import Path
-import matplotlib.pyplot as plt
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import cpu_count
 
@@ -106,7 +105,7 @@ def inventer(data, value, z):
                 T_found.append(T)
                 mub_found.append(result)
 
-    return mub_found, T_found
+    return T_found, mub_found
 
 
 def parallel_inventer(inputs):
@@ -121,27 +120,41 @@ def main(argv):
     try:
         directory = Path(args.input)
         enerdens, bardens = open_all_files(directory)
-        e_value = 5012284343
-        nb_value = 1740599
 
         enerdens["e"] = enerdens["e"] * (enerdens["T"] ** 4)
         bardens["nb"] = bardens["nb"] * (bardens["T"] ** 3)
+        N = 100
+        min_e = enerdens["e"].min()
+        max_e = enerdens["e"].max()
+        min_nb = bardens["nb"].min()
+        max_nb = bardens["nb"].max()
 
-        inputs = [(enerdens, e_value, "e"), (bardens, nb_value, "nb")]
+        nb_grid = [min_nb + i * (max_nb - min_nb) / N for i in range(N)]
+        e_grid = [min_e + i * (max_e - min_e) / N for i in range(N)]
 
-        with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
-            results = list(executor.map(parallel_inventer, inputs))
+        for i in e_grid:
+            for j in nb_grid:
+                inputs = [(enerdens, i, "e"), (bardens, j, "nb")]
 
-        fig, ax = plt.subplots(1, 1, figsize=(7, 5), sharex="col", sharey="row")
+                with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
+                    results = list(executor.map(parallel_inventer, inputs))
+                logger.info("neco delam")
 
-        ax.plot(results[0][0], results[0][1], label="e")
-        ax.plot(results[1][0], results[1][1], label="nb")
-        ax.legend()
+                a, b = results[0][0], results[0][1]
+                c, d = results[1][0], results[1][1]
 
-        ax.set_xlabel("mub")
-        ax.set_ylabel("T")
+                common_elements = set(a) & set(c)
+                for element in common_elements:
+                    index_a = a.index(element)  # Index v poli a
+                    index_c = c.index(element)
 
-        plt.show()
+                    corresponding_b = b[index_a]  # Prislusny prvek v poli b
+                    corresponding_d = d[index_c]
+
+                    if abs(corresponding_b - corresponding_d) < 4:
+                        print(
+                            f"Common element: {element}, b: {corresponding_b}, d: {corresponding_d}"
+                        )
 
     except Exception:
         logger.exception("Something went wrong.")

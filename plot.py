@@ -5,7 +5,7 @@ import numpy as np
 dir = "/Users/tomaspolednicek/Desktop/EoS-script/data/"
 
 data = pd.read_csv(
-    dir + "EnerDens_Final_PAR_143_350_3_93_143_286_3D.dat",
+    dir + "BarDens_Final_PAR_143_350_3_93_143_286_3D.dat",
     sep="\s+",
     header=None,
     # names=["e", "nb", "nQ","T", "P", "mub", "mus", "muq"],
@@ -13,7 +13,7 @@ data = pd.read_csv(
     names=["mub", "T", "e"],
 )
 
-data["e"] = data["e"] * (data["T"] ** 4)
+data["e"] = data["e"] * (data["T"] ** 3)
 
 pivot = data.pivot(index="mub", columns="T", values="e")
 mub_values = pivot.index.values

@@ -6,8 +6,6 @@ import warnings
 from argparse import ArgumentParser
 from logging.handlers import WatchedFileHandler
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor
-from multiprocessing import cpu_count
 
 logger = logging.getLogger("inventer")
 
@@ -100,17 +98,13 @@ def inventer(data, value, z):
         for mub in range(len(mub_values) - 1):
             mub_low, mub_high = mub_values[mub], mub_values[mub + 1]
             low, high = pivot.loc[mub_values[mub], T], pivot.loc[mub_values[mub + 1], T]
-            if low <= value <= high:
+
+            if low < value and value < high:
                 result = linear_func(value, low, high, mub_low, mub_high)
                 T_found.append(T)
                 mub_found.append(result)
 
     return T_found, mub_found
-
-
-def parallel_inventer(inputs):
-    ener, e_val, type_of_eos = inputs
-    return inventer(ener, e_val, type_of_eos)
 
 
 def main(argv):
@@ -121,40 +115,47 @@ def main(argv):
         directory = Path(args.input)
         enerdens, bardens = open_all_files(directory)
 
-        enerdens["e"] = enerdens["e"] * (enerdens["T"] ** 4)
-        bardens["nb"] = bardens["nb"] * (bardens["T"] ** 3)
-        N = 100
-        min_e = enerdens["e"].min()
-        max_e = enerdens["e"].max()
-        min_nb = bardens["nb"].min()
-        max_nb = bardens["nb"].max()
+        # enerdens["e"] = enerdens["e"] * (enerdens["T"] ** 4)
+        # bardens["nb"] = bardens["nb"] * (bardens["T"] ** 3)
+        N = 201
+        min_e = -0.00999
+        max_e = 13.6
+        min_nb = -1.369e-14
+        max_nb = 0.63
 
         nb_grid = [min_nb + i * (max_nb - min_nb) / N for i in range(N)]
         e_grid = [min_e + i * (max_e - min_e) / N for i in range(N)]
 
         for i in e_grid:
+            T_e, mub_e = inventer(enerdens, i, "e")
+            if not T_e or not mub_e:
+                continue
             for j in nb_grid:
-                inputs = [(enerdens, i, "e"), (bardens, j, "nb")]
+                T_nb, mub_nb = inventer(bardens, j, "nb")
+                element = set(T_e) & set(T_nb)
+                if element:
+                    for element in element:
+                        index_Te = T_e.index(element)
+                        index_Tnb = T_nb.index(element)
+                        corresponding_mub_e = mub_e[index_Te]
+                        corresponding_mub_nb = mub_nb[index_Tnb]
+                        if abs(corresponding_mub_e - corresponding_mub_nb) < 2:
+                            print(
+                                f"Common element: {element}, mub_e: {corresponding_mub_e}, mub_nb: {corresponding_mub_nb}"
+                            )
 
-                with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
-                    results = list(executor.map(parallel_inventer, inputs))
-                logger.info("neco delam")
+            # common_elements = set(T) & set(c)
+            # for element in common_elements:
+            #    index_a = a.index(element)  # Index v poli a
+            #    index_c = c.index(element)
 
-                a, b = results[0][0], results[0][1]
-                c, d = results[1][0], results[1][1]
+            #    corresponding_b = b[index_a]  # Prislusny prvek v poli b
+            #    corresponding_d = d[index_c]
 
-                common_elements = set(a) & set(c)
-                for element in common_elements:
-                    index_a = a.index(element)  # Index v poli a
-                    index_c = c.index(element)
-
-                    corresponding_b = b[index_a]  # Prislusny prvek v poli b
-                    corresponding_d = d[index_c]
-
-                    if abs(corresponding_b - corresponding_d) < 4:
-                        print(
-                            f"Common element: {element}, b: {corresponding_b}, d: {corresponding_d}"
-                        )
+            #    if abs(corresponding_b - corresponding_d) < 4:
+            #       print(
+            #           f"Common element: {element}, b: {corresponding_b}, d: {corresponding_d}"
+            #       )
 
     except Exception:
         logger.exception("Something went wrong.")

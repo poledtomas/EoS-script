@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 import sys
 import warnings
+import multiprocessing
 from argparse import ArgumentParser
 from logging.handlers import WatchedFileHandler
 from pathlib import Path
@@ -21,21 +22,15 @@ def parse_args(argv):
     parser_invert = subparsers.add_parser(
         "invert", help="Invert from (mub,T) to (e,nb)"
     )
-    parser_invert.add_argument(
-        "--output",
-        metavar="DIR",
-        required=True,
-        help="Output directory",
-    )
 
     parser_invert.add_argument(
-        "--input",
-        metavar="DIR",
-        required=True,
-        help="Input directory",
+        "--output", metavar="DIR", required=True, help="Output directory"
     )
-    args = parser.parse_args(argv)
-    return args
+    parser_invert.add_argument(
+        "--input", metavar="DIR", required=True, help="Input directory"
+    )
+
+    return parser.parse_args(argv)
 
 
 def configure_logging(filename=None, level=logging.DEBUG):
@@ -43,6 +38,7 @@ def configure_logging(filename=None, level=logging.DEBUG):
         handler = WatchedFileHandler(filename, encoding="utf-8")
     else:
         handler = logging.StreamHandler(sys.stdout)
+
     logging.basicConfig(
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -80,13 +76,11 @@ def open_all_files(directory):
 
 
 def linear_func(e, e2, e3, mu2, mu3):
-    result = mu2 + (e - e2) * (mu3 - mu2) / (e3 - e2)
-
-    return result
+    return mu2 + (e - e2) * (mu3 - mu2) / (e3 - e2)
 
 
 def inventer(data, value, z):
-    logger.info(f"looking for a solution for value = {value}")
+    logger.info(f"Looking for a solution for value = {value}")
     pivot = data.pivot(index="mub", columns="T", values=f"{z}").sort_index()
     T_values = sorted(set(pivot.columns))
     mub_values = sorted(set(pivot.index))
@@ -99,12 +93,38 @@ def inventer(data, value, z):
             mub_low, mub_high = mub_values[mub], mub_values[mub + 1]
             low, high = pivot.loc[mub_values[mub], T], pivot.loc[mub_values[mub + 1], T]
 
-            if low < value and value < high:
+            if low < value < high:
                 result = linear_func(value, low, high, mub_low, mub_high)
                 T_found.append(T)
                 mub_found.append(result)
 
     return T_found, mub_found
+
+
+def process_e_value(args):
+    """Function to process a single value of e_grid (parallelized)."""
+    i, enerdens, bardens, nb_grid = args  # Unpack arguments
+    results = []
+    T_e, mub_e = inventer(enerdens, i, "e")
+    if not T_e or not mub_e:
+        return results  # Skip if no valid results
+
+    for j in nb_grid:
+        T_nb, mub_nb = inventer(bardens, j, "nb")
+        common_elements = set(T_e) & set(T_nb)
+
+        if common_elements:
+            for element in common_elements:
+                index_Te = T_e.index(element)
+                index_Tnb = T_nb.index(element)
+                corresponding_mub_e = mub_e[index_Te]
+                corresponding_mub_nb = mub_nb[index_Tnb]
+
+                if abs(corresponding_mub_e - corresponding_mub_nb) < 2:
+                    results.append(
+                        f"e: {i}, nb: {j}, Te: {element}, Tnb: {element}, mub_e: {corresponding_mub_e}, mub_nb: {corresponding_mub_nb}"
+                    )
+    return results
 
 
 def main(argv):
@@ -115,47 +135,25 @@ def main(argv):
         directory = Path(args.input)
         enerdens, bardens = open_all_files(directory)
 
-        # enerdens["e"] = enerdens["e"] * (enerdens["T"] ** 4)
-        # bardens["nb"] = bardens["nb"] * (bardens["T"] ** 3)
-        N = 201
-        min_e = -0.00999
-        max_e = 13.6
-        min_nb = -1.369e-14
-        max_nb = 0.63
+        N = 100
+        min_e, max_e = -0.00999, 13.6
+        min_nb, max_nb = -1.369e-14, 0.63
 
         nb_grid = [min_nb + i * (max_nb - min_nb) / N for i in range(N)]
         e_grid = [min_e + i * (max_e - min_e) / N for i in range(N)]
 
-        for i in e_grid:
-            T_e, mub_e = inventer(enerdens, i, "e")
-            if not T_e or not mub_e:
-                continue
-            for j in nb_grid:
-                T_nb, mub_nb = inventer(bardens, j, "nb")
-                element = set(T_e) & set(T_nb)
-                if element:
-                    for element in element:
-                        index_Te = T_e.index(element)
-                        index_Tnb = T_nb.index(element)
-                        corresponding_mub_e = mub_e[index_Te]
-                        corresponding_mub_nb = mub_nb[index_Tnb]
-                        if abs(corresponding_mub_e - corresponding_mub_nb) < 2:
-                            print(
-                                f"Common element: {element}, mub_e: {corresponding_mub_e}, mub_nb: {corresponding_mub_nb}"
-                            )
+        # Prepare argument tuples for multiprocessing
+        task_args = [(i, enerdens, bardens, nb_grid) for i in e_grid]
 
-            # common_elements = set(T) & set(c)
-            # for element in common_elements:
-            #    index_a = a.index(element)  # Index v poli a
-            #    index_c = c.index(element)
+        # Use multiprocessing to process e_grid values in parallel
+        num_workers = multiprocessing.cpu_count()
+        with multiprocessing.Pool(num_workers) as pool:
+            results = pool.map(process_e_value, task_args)
 
-            #    corresponding_b = b[index_a]  # Prislusny prvek v poli b
-            #    corresponding_d = d[index_c]
-
-            #    if abs(corresponding_b - corresponding_d) < 4:
-            #       print(
-            #           f"Common element: {element}, b: {corresponding_b}, d: {corresponding_d}"
-            #       )
+        # Flatten and print results safely
+        for res in results:
+            for line in res:
+                logger.info(line)
 
     except Exception:
         logger.exception("Something went wrong.")

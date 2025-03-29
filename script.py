@@ -3,12 +3,18 @@ import pandas as pd
 import logging
 import sys
 import warnings
-import multiprocessing
 from argparse import ArgumentParser
 from logging.handlers import WatchedFileHandler
 from pathlib import Path
+from multiprocessing import cpu_count
+from concurrent.futures import ProcessPoolExecutor
 
 logger = logging.getLogger("inventer")
+
+global N, min_e, max_e, min_nb, max_nb
+N = 9
+min_e, max_e = -0.00999, 13.6
+min_nb, max_nb = -1.369e-14, 0.63
 
 
 def parse_args(argv):
@@ -102,12 +108,14 @@ def inventer(data, value, z):
 
 
 def process_e_value(args):
-    """Function to process a single value of e_grid (parallelized)."""
-    i, enerdens, bardens, nb_grid = args  # Unpack arguments
     results = []
+    i, enerdens, bardens = args
+
+    nb_grid = [min_nb + i * (max_nb - min_nb) / N for i in range(N)]
+
     T_e, mub_e = inventer(enerdens, i, "e")
     if not T_e or not mub_e:
-        return results  # Skip if no valid results
+        return results
 
     for j in nb_grid:
         T_nb, mub_nb = inventer(bardens, j, "nb")
@@ -120,10 +128,21 @@ def process_e_value(args):
                 corresponding_mub_e = mub_e[index_Te]
                 corresponding_mub_nb = mub_nb[index_Tnb]
 
-                if abs(corresponding_mub_e - corresponding_mub_nb) < 2:
+                if abs(corresponding_mub_e - corresponding_mub_nb) < 1:
                     results.append(
-                        f"e: {i}, nb: {j}, Te: {element}, Tnb: {element}, mub_e: {corresponding_mub_e}, mub_nb: {corresponding_mub_nb}"
+                        f"{i}"
+                        + " "
+                        + f"{j}"
+                        + " "
+                        + f"{element}"
+                        + " "
+                        + f"{element}"
+                        + " "
+                        + f"{corresponding_mub_e}"
+                        + " "
+                        + f"{corresponding_mub_nb}"
                     )
+
     return results
 
 
@@ -132,28 +151,30 @@ def main(argv):
     configure_logging(filename=args.logfile, level=args.loglevel)
 
     try:
-        directory = Path(args.input)
-        enerdens, bardens = open_all_files(directory)
+        directory_input = Path(args.input)
+        enerdens, bardens = open_all_files(directory_input)
 
-        N = 100
-        min_e, max_e = -0.00999, 13.6
-        min_nb, max_nb = -1.369e-14, 0.63
-
-        nb_grid = [min_nb + i * (max_nb - min_nb) / N for i in range(N)]
         e_grid = [min_e + i * (max_e - min_e) / N for i in range(N)]
 
-        # Prepare argument tuples for multiprocessing
-        task_args = [(i, enerdens, bardens, nb_grid) for i in e_grid]
+        task_args = [(i, enerdens, bardens) for i in e_grid]
 
-        # Use multiprocessing to process e_grid values in parallel
-        num_workers = multiprocessing.cpu_count()
-        with multiprocessing.Pool(num_workers) as pool:
-            results = pool.map(process_e_value, task_args)
+        with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
+            results = executor.map(
+                process_e_value, task_args, chunksize=len(task_args) // cpu_count()
+            )
 
-        # Flatten and print results safely
-        for res in results:
-            for line in res:
-                logger.info(line)
+        directory_output = Path(args.output)
+        if not directory_output.exists():
+            os.makedirs(directory_output)
+
+        output_filename = os.path.join(directory_output, "EoS_inventer.dat")
+        logger.info(f"Writing results to {output_filename}")
+        with open(output_filename, "a") as fout:
+            fout.write("e, nb, Te, Tnb, mub_e, mub_nb \n")
+
+            for res in results:
+                for line in res:
+                    fout.write(line + "\n")
 
     except Exception:
         logger.exception("Something went wrong.")

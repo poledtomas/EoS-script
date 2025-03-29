@@ -30,7 +30,7 @@ def parse_args(argv):
     )
 
     parser_invert.add_argument(
-        "--output", metavar="DIR", required=True, help="Output directory"
+        "--output", metavar="FILE", required=True, help="Output directory"
     )
     parser_invert.add_argument(
         "--input", metavar="DIR", required=True, help="Input directory"
@@ -164,10 +164,7 @@ def main(argv):
             )
 
         directory_output = Path(args.output)
-        if not directory_output.exists():
-            os.makedirs(directory_output)
-
-        output_filename = os.path.join(directory_output, "EoS_inventer.dat")
+        output_filename = os.path.join(directory_output)
         logger.info(f"Writing results to {output_filename}")
         with open(output_filename, "a") as fout:
             fout.write("e, nb, Te, Tnb, mub_e, mub_nb \n")

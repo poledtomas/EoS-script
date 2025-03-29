@@ -12,7 +12,7 @@ from concurrent.futures import ProcessPoolExecutor
 logger = logging.getLogger("inventer")
 
 global N, min_e, max_e, min_nb, max_nb
-N = 9
+N = 12
 min_e, max_e = -0.00999, 13.6
 min_nb, max_nb = -1.369e-14, 0.63
 
@@ -110,6 +110,7 @@ def inventer(data, value, z):
 def process_e_value(args):
     results = []
     i, enerdens, bardens = args
+    print(i)
 
     nb_grid = [min_nb + i * (max_nb - min_nb) / N for i in range(N)]
 

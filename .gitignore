@@ -1,8 +1,7 @@
-__pycache__/
-*.pyc
 venv/
 jobs/
 data/
+*.dat
 *.log
-nohup.out
+*.sh
 .vscode/

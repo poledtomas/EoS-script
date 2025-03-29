@@ -51,7 +51,7 @@ Te = inv["mub_e"].to_numpy()
 
 # Create a 2D grid for interpolation
 E, NB = np.meshgrid(
-    np.linspace(e.min(), e.max(), len(e)), np.linspace(nb.min(), nb.max(), 50)
+    np.linspace(e.min(), e.max(), len(e)), np.linspace(nb.min(), nb.max(), len(e))
 )
 
 # Interpolate Te values to match the grid
@@ -62,12 +62,12 @@ fig = plt.figure(figsize=(8, 6))
 ax = fig.add_subplot(111, projection="3d")
 
 # Plot surface
-ax.plot_surface(E, NB, Te_grid, cmap="viridis")
+# ax.plot_surface(E, NB, Te_grid, cmap="viridis")
 ax.scatter(e, nb, Te, c="r", marker="o", label="Data Points")
 # Labels
 ax.set_xlabel("e")
 ax.set_ylabel("nb")
-ax.set_zlabel("Te")
+ax.set_zlabel("mub_e")
 ax.set_title("3D Surface Plot of e, nb, and Te")
 
 plt.show()

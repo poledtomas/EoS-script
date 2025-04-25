@@ -1,19 +1,5 @@
-# /usr/bin/env python3
-# Copyright Chun Shen @ 2018
-
 import numpy as np
 from scipy import interpolate
-
-
-# try:
-#    EOS_table_file = str(sys.argv[1])
-#    mode = int(sys.argv[2])
-# except:
-#    print("Usage: python3 {} EOS_table_file mode".format(sys.argv[0]))
-#    print("       mode = 0: NEoS-B")
-#    print("       mode = 1: NEoS-BS")
-#    print("       mode = 2: NEoS-BQS")
-#    exit(1)
 
 ACCURACY = 1e-6
 MAXITER = 100

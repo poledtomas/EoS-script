@@ -16,7 +16,7 @@ Create Python virtual environment::
 
 To run scripts, use for example::
 
-./venv/bin/python inventory.py  
+./venv/bin/python inventer.py  
 
 Contribution guidelines
 =======================

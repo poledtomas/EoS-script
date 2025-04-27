@@ -136,7 +136,7 @@ for row in output:
 output_array = np.array(cleaned_output)
 
 np.savetxt(
-    "id3.dat",
+    "EOS.dat",
     output_array,
     fmt="%10.6f",
     header="e[GeV/fm^3]  nB[1/fm^3]  P[GeV/fm^3]  T[GeV]  muB[GeV]",
